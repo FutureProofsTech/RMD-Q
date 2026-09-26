@@ -1,0 +1,60 @@
+%=====================================================================
+\section{Constructions}
+\label{sec:kem}
+%=====================================================================
+
+\subsection{KEM (FO-KEM over RMD-Q CPA-PKE)}
+\label{sec:kemech}
+
+The shape mirrors FIPS~203 (CPA-PKE + Fujisaki-Okamoto $\Rightarrow$
+IND-CCA2~\cite{HHK17}) with the RMD-Q relation as trapdoor; $P$
+participates in keygen and domain separation (ciphertexts carry no MQ
+opening in v0.1 -- a documented limitation, not a security argument).
+\textsf{KeyGen} expands $A$, samples sparse $s$, plants $P$, samples
+CBD error $e$, sets $b=As+e$. \textsf{Encaps} derives coins as
+$\mathrm{SHAKE256}(\text{coins}\|m\|\mathrm{pkhash})$, samples dense CBD
+$(r,e_1,e_2)$, and outputs $u=A^Tr+e_1$,
+$v=b^Tr+e_2+\mathrm{encode}(m)$ with $K$ derived alongside.
+\textsf{Decaps} decodes $m'=v-s^Tu$, re-encrypts, byte-compares, and
+returns $K$ or $\mathrm{SHAKE256}(\text{reject}\|\sigma\|ct)$ (implicit
+rejection). Correctness needs per-coefficient noise $< q/4$; exact failure
+distributions are computed in Section~\ref{sec:analysis}.
+
+\subsection{Signature v1 (toy status)}
+\label{sec:sig}
+
+Same keypair shape; Fiat-Shamir with a \emph{dual} opening from one mask
+$y$: $z_{\mathrm{lat}} = y + c_{\mathrm{poly}} s$ (sparse weight-$\tau$
+challenge) for the lattice check $w' = Az_{\mathrm{lat}}-c_{\mathrm{poly}}b
+\approx w$, and $z_{\mathrm{mq}} = y + c_{\mathrm{scalar}} s$ with bilinear
+opening $h$ satisfying $P(z_{\mathrm{mq}}) = P(y) + c\,h$ for the MQ check.
+\textbf{Load-bearing restriction (found by testing):} $P$ must be
+homogeneous-quadratic -- with linear parts the opening gains a
+$c^2P_{\mathrm{quad}}(s)$ defect and verification fails in general; toy
+sparsity masked this (both parts vanished independently by luck). The
+opening asserts $v_j\ne -1$. Unspecified in v0.1: prod challenge
+$(\tau,\gamma_1,\beta)$ with size analysis, wire sizes, hedged policy,
+rejection-rate analysis, n=256 C code, and any zero-knowledge property.
+
+\subsection{Parameters}
+
+\begin{center}
+\begin{tabular}{lccccccccc}
+\toprule
+set & $n$ & $q$ & $k$ & $\eta$ & $w$/poly & $\eta_e$ & $t$ & $m$ & wire \\
+\midrule
+TOY-16 & 16 & 17 & 1 & 1 & 4 & 1 & 2 & 4 & raw \\
+TOY-32 & 32 & 97 & 1 & 1 & 6 & 1 & 3 & 6 & raw \\
+PROD-256 & 256 & 3329 & 2 & 2 & 128 & 2 & 8 & 12 & 12-bit \\
+PROD-384 & 256 & 3329 & 3 & 2 & 160 & 2 & 10 & 12 & 12-bit (no KATs) \\
+\bottomrule
+\end{tabular}
+\end{center}
+The ring is shared with ML-KEM deliberately (NTT reuse, mature ring
+cryptanalysis, comparability); $k{=}2/3$ matches ML-KEM-512/768 dimensions;
+$w{=}128$ closes the modeled 5-bit gap to the Kyber reference at $\approx$
+zero size cost (Section~\ref{sec:analysis}); $t/m$ supported by Gr\"obner
+scaling and XL-infeasibility results below. Wire v0.1 is uncompressed
+12-bit packing (pk $\approx$0.8\,KB, ct $\approx$0.8--1.1\,KB); compressed
+$(10,5)$ FO path (800\,B ct, re-compress-then-compare decapsulation) proven
+end-to-end in Python with a byte-exact C codec.

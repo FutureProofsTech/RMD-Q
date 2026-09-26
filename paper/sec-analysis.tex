@@ -1,0 +1,42 @@
+%=====================================================================
+\section{Security analysis: models, measurements, kill-phase}
+\label{sec:analysis}
+%=====================================================================
+
+All numbers below are directional (model tolerances stated); each result
+points at its reproduction artifact (Section~\ref{sec:impl}).
+
+\paragraph{Lattice leg.} Dual-BKZ model (Bai-Galbraith scaled dual;
+$2^{0.292\beta}$/$2^{0.265\beta}$/$2^{0.2075\beta}$ costs) validates within
+3 bits on ML-KEM-512 ($2^{115}$/$2^{104}$ vs.\ published $2^{118}$/$2^{107}$;
+20-bit optimism at 768, stated). Ours: k=2 $\approx 2^{110}/2^{99}$,
+$\approx$5--7 bits under same-$N$ reference in-model. fpylll cross-check of
+the BKZ constant agrees within 0.3\% (conservative direction).
+
+\paragraph{Hybrid guessing.} Position+value guessing + BKZ remainder:
+optimum is $g{=}0$ at all densities (guessing uneconomical at 25\%
+density); enumeration validated empirically; weight lever quantified
+($w{=}256$ total closes the gap). Perfect-hints curve: $\approx$10 bits
+lost per 32 leaked coordinates. Unhandled: hints-variants, BKW,
+quantum walks.
+
+\paragraph{Joint lattice+MQ.} XL with field equations counted
+attacker-favorably is infeasible at prod scale (never closes at any degree
+$\le 14$); lattice path binds in-model. Planted-structure-specific attacks
+remain unmodeled -- the open cryptanalytic question.
+
+\paragraph{Gr\"obner/msolve kill-phase.} Planted n=16: basis 0.3--2s;
+full \emph{solve} $>$300\,s even at n=16 (bases cheap, solutions hard).
+n=24 basis 180\,s, n=28 basis $>$1200\,s (bounded, unfinished), n=32 basis
+exhausts 114\,GB on 16 cores (kernel-logged OOM -- memory wall, not timeout). Pure-MQ
+(no bounds) terminates trivially everywhere but recovers nothing
+(positive-dimensional variety). Planted vs.\ random show no measurable
+non-genericity at n=16; Bardet bounds uninformative for this shape
+(predicted 15/27 vs.\ observed 2--4). Toy instances additionally fall to
+brute force, MITM (exact key, 23M checks in C), and LLL+Babai hybrids.
+
+\paragraph{Failures.} Exact convolution distributions (FIPS-203 style):
+$2^{-910}$--$2^{-512}$ per-KEM uncompressed across weights;
+$2^{-268.6}$ at $(d_u,d_v)=(10,5)$, $2^{-235.4}$ at $(10,4)$ -- far under
+the $2^{-138}$ bar. 200\,000 C-speed trials at n=256 (both paths): zero
+failures (Clopper-Pearson 95\% upper $\approx 2^{-15}$).

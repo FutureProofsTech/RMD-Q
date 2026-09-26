@@ -1,0 +1,43 @@
+%=====================================================================
+\section{The RMD-Q assumption}
+\label{sec:problem}
+%=====================================================================
+
+\begin{definition}[Search-RMD-Q]
+Parameters $(n,q,k,\eta,w,\eta_e,t,m)$, $N=k{\cdot}n$.
+\textsf{Gen} samples $A \gets U(R_q^{k\times k})$ (SHAKE128),
+$s \gets S(\eta,w)^k$, $e \gets \mathrm{noise}(\eta_e)$,
+$P \gets \mathrm{MQ}(t,m)$ conditioned on $P(s)=0$, and sets $b = As+e$.
+Given $x=(A,b,P)$, find $s'$ with $\mathrm{wt}(s')\le k{\cdot}w$,
+$\|s'\|_\infty \le \eta$, $\|As'-b\|_\infty \le B_e$, and $P(s')=0$
+exactly. Decision-RMD-Q distinguishes $(A,As+e,P)$ from uniform.
+\end{definition}
+
+The assumption is that breaking an instance requires a lattice decoder
+\emph{and} an MQ solver \emph{jointly}: lattice-only candidates fail
+$P(s')=0$ with probability $\approx 1-q^{-t}$ each, while MQ-only roots
+violate the noisy linear bound. No Shor structure exists (random module
+matrix, random sparse MQ); Grover gives at most a square-root speedup over
+the $C(N,w)\cdot(2\eta+1)^w$ sparse space.
+
+\subsection{Plantable key generation}
+
+Rejection-sampling $s$ until $P(s)=0$ succeeds with probability $\approx
+q^{-t}$ per try -- impossible at scale. Our planted distribution samples
+$s$ first, then per equation samples $m{-}1$ free terms (uniform supports
+and coefficients over $[0,q)$) plus one fix monomial on
+$\mathrm{support}(s)$ with solved coefficient
+$c_{\mathrm{fix}} = -\mathrm{rest}\cdot \mathrm{ev}^{-1} \bmod q$, inserted
+at a uniform slot; free coefficients are resampled (bounded) until
+$c_{\mathrm{fix}}\ne 0$, with a pure-random escape hatch when all free
+monomials vanish at $s$ (then uniform-random, no conditioning at all).
+Given supports and $s$, coefficients are uniform over the hyperplane
+$\{c : \langle c,\mathrm{evals}\rangle = 0\}$ minus a $1/q$ slice.
+Measured: fix-coefficient $\chi^2 = 17.4$ on 209 samples over
+$\mathbb{Z}_{17}^*$ (null mean 15); positions spread over $\mathrm{supp}(s)$.
+Accepted residual leakage (pad linear terms on zero coordinates;
+$1/q$ conditioning mass) is documented, not claimed away. First-ever joint
+keygen at $(256, t{=}8)$ runs instantly with passing KEM round-trips.
+This shifts random-MQ to \emph{planted}-MQ -- same family as planted
+instances in MPCitH/code-based designs, but our sparse-planted distribution
+needs dedicated analysis (Section~\ref{sec:analysis}).

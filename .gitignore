@@ -1,0 +1,35 @@
+# Build artifacts: compiled C test/bench binaries (no extension)
+c/selftest
+c/fips202_test
+c/kem_toy
+c/kem_fo
+c/sig_v1
+c/mitm_toy32
+c/pack_test
+c/bench
+c/cbd_test
+c/barrett_test
+c/kem256
+c/compress_test
+c/trial_kem
+*.o
+*.su
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+# LaTeX intermediates (PDFs are kept intentionally)
+*.aux
+*.log
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+# Editors / OS
+.DS_Store
+*~
+*.swp
+.vscode/
+# Local notes (never commit secrets)
+*.local

@@ -1,0 +1,206 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm,amsfonts}
+\usepackage[hidelinks]{hyperref}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage[margin=1in]{geometry}
+
+\newtheorem{definition}{Definition}
+\newtheorem{conjecture}{Conjecture}
+
+\title{RMD-Q: Restricted Module Decoding with Quadratic Constraint\\--- A New Post-Quantum Assumption with Lightweight KEM\\and Signature Constructions, Analysis, and Verified Prototype}
+\author{nul0 (Future Proofs Tech) \\ \texttt{futureproofs@proton.me}}
+\date{September 2026 \\ (DRAFT v0.1 --- research report, not a standard) \\
+\small \textcopyright\ 2026 nul0 (Future Proofs Tech). Licensed under GPLv3 (see LICENSE).}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We introduce \emph{Restricted Module Decoding with Quadratic Constraint}
+(RMD-Q), a new post-quantum hardness assumption that jointly couples a
+noisy module-linear relation $b = As+e$ over $R_q = \mathbb{Z}_q[X]/(X^n+1)$
+with a sparse multivariate-quadratic constraint $P(s)=0$ over the same
+secret: breaking an instance requires a lattice decoder \emph{and} an MQ
+solver together, neither alone suffices.  From one assumption we build both
+a Fujisaki-Okamoto key-encapsulation mechanism and a Fiat-Shamir signature
+with dual lattice/MQ openings, sharing ring arithmetic, XOF layer, and
+codebase (crypto core $\approx 3.9$\,KB).  This report documents the
+assumption (including a plantable key-generation distribution with measured
+uniformity), exact decrypt-failure distributions by convolution (down to
+$2^{-910}$ uncompressed, $2^{-235}$ at Kyber-style compression), dual-BKZ
+and hybrid cost models validated within 3 bits on ML-KEM-512, a calibrated
+kill-phase campaign (toy instances fall to brute force, MITM, LLL,
+Gr\"obner, and msolve; larger instances stall or exhaust a 16-core/31\,GB
+box), and a constant-time-shaped C implementation cross-checked
+byte-for-byte against an independent Python reference (NTT backend with
+exhaustively proven Barrett reduction, sanitizers and valgrind clean).
+We make \emph{no} NIST category claims and \emph{no} deployment
+recommendation: the assumption is conjectured, several analyses are
+explicitly open, and Section~\ref{sec:nonclaims} lists everything this
+report does \emph{not} claim.  All artifacts needed to reproduce every
+number are described in Section~\ref{sec:repro}.
+\end{abstract}
+
+\noindent\textbf{Keywords:} post-quantum cryptography, module-LWE,
+multivariate cryptography, planted problems, key encapsulation, digital
+signatures, cryptanalysis, verified implementation
+
+\tableofcontents
+\newpage
+
+%=====================================================================
+\section{Introduction}
+%=====================================================================
+
+\subsection{Motivation}
+
+The NIST post-quantum standards (ML-KEM~\cite{FIPS203}, ML-DSA~\cite{FIPS204},
+SLH-DSA~\cite{FIPS205}) secure the general case, but leave two gaps this
+work addresses as a \emph{research contribution, not a deployment proposal}:
+(i)~ultra-constrained targets where every kilobyte of code and every
+millijoule counts, and (ii)~assumption diversity beyond pure Module-LWE /
+Module-SIS and hash-based designs (cf.\ the ongoing additional-signatures
+process~\cite{IR8610}).
+
+\subsection{Contributions}
+
+\begin{enumerate}[leftmargin=*]
+\item \textbf{A new assumption (Section~\ref{sec:problem}).}
+  Search/Decision RMD-Q: sparse-short $s$ with $b=As+e$ \emph{and}
+  $P(s)=0$ for a sparse homogeneous-quadratic system $P$.  We give a
+  plantable key-generation distribution (always terminates, unlike
+  rejection sampling at scale) with measured coefficient uniformity
+  ($\chi^2=17.4$ vs.\ null mean $15$) and a documented leakage analysis.
+\item \textbf{Two constructions from one assumption (Sections~\ref{sec:kem},
+  \ref{sec:sig}).} An FO-KEM (full encaps/decaps with implicit rejection
+  running in C at $n=256$) and a Fiat-Shamir signature with dual
+  lattice/MQ openings (toy status, Section~\ref{sec:sig} states its limits).
+  A found-by-testing soundness restriction (homogeneous-quadratics only)
+  is documented with its root cause.
+\item \textbf{Quantified analysis, no category claims
+  (Section~\ref{sec:analysis}).} Exact failure distributions by convolution
+  ($2^{-910}$ uncompressed; $2^{-235}$ at $(d_u,d_v)=(10,4)$); dual-BKZ
+  model validated within 3 bits on ML-KEM-512 (20-bit optimism at 768,
+  stated); guessing+lattice hybrid model (optimum: no guessing at these
+  densities; wt lever quantified); joint XL model (MQ leg contributes
+  negligibly in-model); Gr\"obner/msolve scaling curve with a 114\,GB OOM
+  data point; 200\,000 C-speed failure trials, zero failures.
+\item \textbf{Verified prototype (Section~\ref{sec:impl}).} Independent C
+  and Python implementations cross-checked byte-for-byte on all KATs;
+  NTT backend with exhaustively proven Barrett reduction; constant-time
+  twins with automated timing smoke-test; ASan/UBSan/valgrind clean;
+  Cortex-M4 cross-compile clean.
+\end{enumerate}
+
+\subsection{What this report is not (see Section~\ref{sec:nonclaims})}
+
+Not a standard, not a submission, not deployment guidance, not a proof.
+Security categories are never claimed; several analyses are explicitly
+open; Section~\ref{sec:gaps} maps every claim to evidence and blockers.
+
+%=====================================================================
+\section{Preliminaries and notation}
+\label{sec:prelim}
+%=====================================================================
+
+Let $R_q = \mathbb{Z}_q[X]/(X^n+1)$ with $n$ a power of two and $q$ prime;
+our production ring is $(n,q)=(256,3329)$, the standard lattice ring shared
+with ML-KEM~\cite{FIPS203} (deliberately: novelty is claimed only for the
+joint assumption and constructions, never the arithmetic).
+$S(\eta,w)$: each polynomial has at most $w$ nonzero coefficients, values
+uniform over $[-\eta,\eta]$ then sparsified (reference
+\texttt{sample\_sparse\_poly}); secrets only. $\mathrm{CBD}(\eta)$:
+Kyber-style centered binomial, fixed-shape sampling; errors and encryption
+randomness. $U(\mathbb{Z}_q)$: uniform; matrix $A$ expansion. Symmetric
+layer is FIPS-202 SHAKE128/256 only~\cite{FIPS202}, with fixed domain
+separation (matrix expand, FO coins/shared-secret, signature hashes,
+implicit reject). KEM security target: IND-CCA2 via the modular
+Fujisaki-Okamoto transform~\cite{HHK17}. Signatures follow Fiat-Shamir
+with aborts~\cite{Lyu09,Lyu12}. BKZ cost models used:
+$2^{0.292\beta}$ classical (BDGL sieve~\cite{BDGL16}), $2^{0.265\beta}$
+quantum, $2^{0.2075\beta}$ paranoid.
+
+\input{sec-problem}
+\input{sec-constructions}
+\input{sec-analysis}
+\input{sec-implementation}
+
+\bibliographystyle{plain}
+\begin{thebibliography}{99}
+
+\bibitem{FIPS203} National Institute of Standards and Technology.
+  \emph{Module-Lattice-Based Key-Encapsulation Mechanism Standard},
+  FIPS 203, 2024.
+
+\bibitem{FIPS204} National Institute of Standards and Technology.
+  \emph{Module-Lattice-Based Digital Signature Standard}, FIPS 204, 2024.
+
+\bibitem{FIPS205} National Institute of Standards and Technology.
+  \emph{Stateless Hash-Based Digital Signature Standard}, FIPS 205, 2024.
+
+\bibitem{FIPS202} National Institute of Standards and Technology.
+  \emph{SHA-3 Standard: Permutation-Based Hash and Extendable-Output
+  Functions}, FIPS 202, 2015.
+
+\bibitem{IR8610} G.~Alagic et al.
+  \emph{Status Report on the Second Round of the Additional Digital
+  Signature Schemes for the NIST PQC Standardization Process},
+  NIST IR 8610, 2026.
+
+\bibitem{HHK17} D.~Hofheinz, K.~H\"ovelmanns, E.~Kiltz.
+  A modular analysis of the Fujisaki-Okamoto transformation.
+  TCC 2017.
+
+\bibitem{Lyu09} V.~Lyubashevsky.
+  Fiat-Shamir with aborts: Applications to lattice and factoring-based
+  signatures. ASIACRYPT 2009.
+
+\bibitem{Lyu12} V.~Lyubashevsky.
+  Lattice signatures without trapdoors. EUROCRYPT 2012.
+
+\bibitem{BDGL16} A.~Becker, L.~Ducas, N.~Gama, T.~Laarhoven.
+  New directions in nearest neighbor searching with applications to lattice
+  sieving. SODA 2016.
+
+\bibitem{CN11} Y.~Chen, P.~Q.~Nguyen.
+  BKZ 2.0: Better lattice security estimates. ASIACRYPT 2011.
+
+\bibitem{APS15} M.~R.~Albrecht, R.~Player, S.~Scott.
+  On the concrete hardness of Learning with Errors.
+  J.~Math.~Cryptology, 2015. (Estimator methodology.)
+
+\bibitem{MAT22} M.~Matzov.
+  Report on the Security of LWE: Improved Dual Lattice Attack, 2022.
+  (Dual-hybrid attack framework; our model is a simplified instance.)
+
+\bibitem{Bardet04} M.~Bardet, J.-C.~Faug\`ere, B.~Salvy.
+  On the complexity of Gr\"obner basis computation of semi-regular
+  overdetermined algebraic equations. ICPP 2004.
+
+\bibitem{MSolve} J.~Berthomieu, C.~Eder, M.~Safey El Din.
+  msolve: A library for polynomial system solving, 2021.
+  \url{https://msolve.lip6.fr}
+
+\bibitem{FPLLL} The FPLLL development team.
+  FPLLL, a lattice reduction library (fpylll Python wrapper).
+  \url{https://github.com/fplll/fpylll}
+
+\bibitem{pqm4} M.~Kannwischer et al.
+  PQM4: Post-quantum crypto library for the ARM Cortex-M4.
+  \url{https://github.com/mupq/pqm4}
+
+\bibitem{Kyber} R.~Avanzi et al.
+  CRYSTALS-Kyber (version 3.02): Algorithm specification and supporting
+  documentation, 2021. (NIST PQC Round 3.)
+
+\bibitem{Dilithium} S.~Bai et al.
+  CRYSTALS-Dilithium (version 3.1): Algorithm specification and supporting
+  documentation, 2021. (NIST PQC Round 3.)
+
+\end{thebibliography}
+
+\end{document}

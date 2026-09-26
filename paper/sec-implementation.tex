@@ -1,0 +1,51 @@
+%=====================================================================
+\section{Implementation and verification}
+\label{sec:impl}
+%=====================================================================
+
+Independent C and Python implementations cross-checked byte-for-byte on
+all KATs (matrix expansion, sampling, ciphertexts, shared secrets,
+implicit-reject keys, signature vectors). NTT backend for $(256,3329)$
+(verified schedule: forward pairs equal direct CRT reduction; full
+multiply equals schoolbook): $6.0\times$ multiply, $8.8\times$ matrix-vector
+($\approx$25\,$\mu$s, full KEM $\approx$0.25\,ms host; $\approx$1.6M M4
+cycles projected). Barrett reduction exhaustively proven over all 11M
+products. Constant-time twins (masked arithmetic, Barrett-only, inverse
+table) equivalence-tested with an automated objdump smoke check (zero
+sign-jumps; reference still shows its jump, proving sensitivity); CT costs
+$\approx$1.05--1.17$\times$. CBD sampling wired into FO paths; sparse
+legacy retired behind \texttt{-DRMDQ\_NO\_LEGACY} (hardened-only build
+fully green). ASan/UBSan/valgrind clean; strict warnings plus analyzer
+silent; Cortex-M4 \texttt{-Werror} cross-compile clean (crypto core
+$\approx$3.9\,KB; NTT scratch 24\,KB shared -- too fat for small MCUs,
+streaming path retained). Sizes: pk $\approx$0.8\,KB, ct $\approx$0.8\,KB
+uncompressed. One-command reproduction: \texttt{run\_all.sh}.
+
+%=====================================================================
+\section{Non-claims, gaps, and roadmap}
+\label{sec:nonclaims}
+\label{sec:gaps}
+\label{sec:repro}
+%=====================================================================
+
+\textbf{Not claimed:} any NIST category; any reductionist proof (no ROM/QROM
+sketches exist); certification of RMD-Q/planted-MQ; side-channel resistance
+beyond measured timing smoke; any signature security level; deployment
+readiness (no audit, single-threaded statics, variable-time Python
+reference). Model numbers are directional with stated tolerances.
+
+\textbf{Blocking gaps:} joint Gr\"obner degree-of-regularity at scale;
+proper noisy-hint framework; BKW/quantum-walk analyses; fpylll full-attack
+cross-check; exact failure confirmation via C trials at scale; compressed
+wire KATs; signature prod parameters and proofs; formal object-level timing
+proof; external review.
+
+%=====================================================================
+\section{Conclusion}
+%=====================================================================
+
+RMD-Q couples lattice and multivariate hardness in one assumption supporting
+both KEM and signatures from a shared lightweight codebase, with
+measurement-backed analysis and an explicit, checkable list of what remains
+unknown. We invite attack on every open item -- that scrutiny is the point
+of this report.

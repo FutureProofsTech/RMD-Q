@@ -1,0 +1,106 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[hidelinks]{hyperref}
+\usepackage{booktabs}
+\usepackage[margin=1in]{geometry}
+
+\newtheorem{definition}{Definition}
+\newtheorem{conjecture}{Conjecture}
+
+\title{RMD-Q Yellowpaper\\--- Formal Specification v0.1\\(DRAFT: research prototype, not a standard)}
+\author{nul0 (Future Proofs Tech) \\ \texttt{futureproofs@proton.me}}
+\date{September 2026 \\
+\small \textcopyright\ 2026 nul0 (Future Proofs Tech). Licensed under GPLv3 (see LICENSE).}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Formal specification of the RMD-Q KEM (fully specified) and signature v1
+(toy status): notation, the assumption with its planted distribution,
+frozen parameter sets, exact algorithms, wire formats, KAT inventory,
+number-theoretic transform, and the claims/gap table. Companion to the
+whitepaper (vision) and the ePrint report.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+\section{Notation}
+$R_q = \mathbb{Z}_q[X]/(X^n+1)$, $n$ power of two, $q$ prime; production
+$(n,q)=(256,3329)$. $S(\eta,w)$: at most $w$ nonzero coefficients per
+polynomial, values uniform over $[-\eta,\eta]$ then sparsified (secrets
+only). $\mathrm{CBD}(\eta)$: centered binomial, fixed-shape (errors,
+encryption randomness). Symmetric layer: SHAKE128/256 (FIPS 202) with
+fixed domain separation ($0x00$ matrix, $0x01$ FO coins/shared-secret,
+$0x02$ signatures, \texttt{reject} implicit rejection).
+$\|{\cdot}\|_\infty$ centered; $\mathrm{wt}(\cdot)$ Hamming weight.
+\texttt{encode}: 32 message bytes to one polynomial ($q//2$ vs $0$ per
+bit); correct iff per-coefficient noise $< q/4$.
+
+\section{Assumption RMD-Q}
+\begin{definition}[Search-RMD-Q]
+Parameters $(n,q,k,\eta,w,\eta_e,t,m)$, $N=k{\cdot}n$.
+\textsf{Gen} samples $A\gets U(R_q^{k\times k})$, $s\gets S(\eta,w)^k$,
+$e\gets\mathrm{noise}(\eta_e)$, $P\gets\mathrm{MQ}(t,m)$ conditioned on
+$P(s)=0$, sets $b=As+e$. Given $(A,b,P)$, find $s'$ with
+$\mathrm{wt}\le kw$, $\|s'\|_\infty\le\eta$, $\|As'-b\|_\infty\le B_e$,
+$P(s')=0$ exactly. Decision variant distinguishes
+$(A,As+e,P)$ from uniform.
+\end{definition}
+$P$ is \textbf{planted} (sample $s$, construct $P$ around it: $m{-}1$ free
+terms plus one solved fix monomial on $\mathrm{support}(s)$, uniform slot,
+resample-until-nonzero with pure-random escape) and
+\textbf{homogeneous-quadratic} (load-bearing for the signature opening).
+Measured fix-coefficient $\chi^2=17.4$ (null mean 15, $n=209$).
+
+\section{Parameters (frozen v0.1)}
+\begin{center}
+\begin{tabular}{lccccccccc}
+\toprule
+set & $n$ & $q$ & $k$ & $\eta$ & $w$/poly & $\eta_e$ & $t$ & $m$ & wire \\
+\midrule
+TOY-16 & 16 & 17 & 1 & 1 & 4 & 1 & 2 & 4 & raw \\
+TOY-32 & 32 & 97 & 1 & 1 & 6 & 1 & 3 & 6 & raw \\
+PROD-256 & 256 & 3329 & 2 & 2 & 128 & 2 & 8 & 12 & 12-bit \\
+PROD-384 & 256 & 3329 & 3 & 2 & 160 & 2 & 10 & 12 & estimates only \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{KEM}
+\textbf{KeyGen}$(seeds)$: (1) expand $A$ via SHAKE128;
+(2) sample sparse $s$, plant $P$ around $s$, sample CBD error $e$;
+(3) $b = As+e$; output $pk=(seed_A,seed_P,b)$,
+$sk=(s,pkhash,\sigma)$.
+\textbf{Encaps}$(pk)$: (1) $m \gets \{0,1\}^{256}$;
+(2) $coins$ from SHAKE256 over $(m,pkhash)$, sample dense CBD
+$(r,e_1,e_2)$; (3) $u=A^Tr+e_1$, $v=b^Tr+e_2+\mathrm{encode}(m)$;
+(4) $K$ derived alongside $ct$.
+\textbf{Decaps}$(sk,ct)$: decode $m'=v-s^Tu$, re-encrypt, byte-compare;
+match returns $K$, else $K=\mathrm{SHAKE256}(\text{reject}\|\sigma\|ct)$
+(implicit rejection).
+Wire v0.1: 12-bit lossless packing (NTT-friendly $q<4096$); compressed
+$(d_u,d_v)=(10,5)$ analyzed ($2^{-268.6}$) with Python FO path proven, C
+codec proven. KATs: \texttt{kat\_toy16, kat\_fo16{,(cbd)}, kat\_kem256{,(cbd)}}.
+
+\section{Signature v1 (toy)}
+Fiat-Shamir with dual opening from one mask $y$: $z_{\mathrm{lat}} =
+y+c_{\mathrm{poly}}s$ (lattice check) and $z_{\mathrm{mq}} =
+y+c_{\mathrm{scalar}}s$ with $P(z_{\mathrm{mq}})=P(y)+c\,h$ (MQ check).
+Prod $(\tau,\gamma_1,\beta)$, wire sizes, proofs: unspecified (toy).
+
+\section{NTT (valid $(256,3329)$ only)}
+7-layer DIT, $k{=}1$ skipped, odd-power pair moduli $z_i=w^{2\mathrm{rev}_7(i)+1}$,
+Barrett $\mu{=}20158$ exhaustively proven over all 11M products, inverse
+table, constant-time twins (0 sign-jumps, automated smoke check).
+
+\section{Claims, non-claims, gaps}
+Claimed: KAT-level correctness, FO mechanics, toy breakability as
+predicted, measured hygiene, relative model estimates. NOT claimed: NIST
+categories, reductions/proofs, assumption certification, side-channel
+resistance beyond timing smoke, signature security, deployment readiness.
+Full gap table: \texttt{spec/07-evidence.md}.
+\end{document}
