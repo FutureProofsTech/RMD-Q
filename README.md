@@ -68,7 +68,7 @@ make -C c strict analyze  # -Wconversion -Wpedantic, GCC analyzer
 - Start here for vision and design: [whitepaper](paper/whitepaper.pdf)
 - Start here for exactness: [yellowpaper](paper/yellowpaper.pdf) · [`spec/`](spec/)
 - Results by topic: [`docs/results/`](docs/results/)
-- ePrint submission pack: [`paper/SUBMIT.md`](paper/SUBMIT.md)
+- ePrint submission: `paper/paper.pdf` (see repo history for submission notes)
 
 ## Citation
 
