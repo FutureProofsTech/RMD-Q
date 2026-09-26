@@ -37,7 +37,7 @@ Details with provenance: [`docs/results/`](docs/results/).
 | `tests/` | Known-answer tests (KATs) shared by both implementations |
 | `spec/` | v0.1 specification (notation, assumption, parameters, algorithms, claims, evidence gaps) |
 | `docs/` | Design notes, audits, and [`docs/results/`](docs/results/) per-topic result documents |
-| `paper/` | ePrint submission (`paper.pdf`), [whitepaper](paper/whitepaper.pdf), [yellowpaper](paper/yellowpaper.pdf) |
+| `paper/` | ePrint submission ([paper.pdf](paper/paper.pdf)), [whitepaper](paper/whitepaper.pdf), [yellowpaper](paper/yellowpaper.pdf) |
 
 ## Quick start
 
@@ -68,7 +68,7 @@ make -C c strict analyze  # -Wconversion -Wpedantic, GCC analyzer
 - Start here for vision and design: [whitepaper](paper/whitepaper.pdf)
 - Start here for exactness: [yellowpaper](paper/yellowpaper.pdf) · [`spec/`](spec/)
 - Results by topic: [`docs/results/`](docs/results/)
-- ePrint submission: `paper/paper.pdf` (see repo history for submission notes)
+- ePrint submission: [paper.pdf](paper/paper.pdf) (see repo history for submission notes)
 
 ## Citation
 
